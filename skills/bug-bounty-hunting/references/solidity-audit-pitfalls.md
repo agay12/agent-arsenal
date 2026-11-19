@@ -1,0 +1,9 @@
+# Solidity audit pitfalls
+Semantics that regularly mislead readers (and some automated reviewers) during line-by-line contract audits.
+
+- A `revert` raised INSIDE a `try` block is NOT caught by that same try/catch statement's `catch` clause — try/catch only catches failures of the external call itself. "Try the next venue on partial fill" patterns that `revert` inside `try` actually abort the whole loop.
+- Casting to a smaller uint (`uint128(x)`, `uint64(...)`) never reverts, even on loss — every shrink of a user-controlled amount must have an explicit upper-bound guard or the accounting splits into the full amount plus a truncated amount.
+- `try`/`catch (bytes memory reason)` on a call that "always reverts by design" still burns all gas of the simulated call when the revert is a gas exhaustion, not a controlled revert — unbounded simulation loops with no gas cap are an unauthenticated DoS surface on any contract that simulates over an open registry.
+- An eviction rule comparing in-range `liquidity(id)` can be gamed by concentrated dust liquidity: cheap to spike, low real depth. Registry slot eviction + no gas cap + permissionless register is a compound DoS pattern — check all three together.
+- Balance-based accounting functions (`notifyFee(amount)`-style) that verify `balanceOf(this) >= accounted` instead of a measured transfer delta let donations make ANY later call look backed — and the call's side effects (referral accrual, epoch accounting) route to whoever controls the caller role. Verify each notifier/caller path against measured deltas.
+- A claim like "holder cannot withdraw before X lands" is only true if EVERY path that moves funds out re-locks or is gated on the protecting state — check requests made BEFORE the protecting action was scheduled; front-running the protecting transaction from the mempool is the same hole.
